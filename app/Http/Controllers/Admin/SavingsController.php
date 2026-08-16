@@ -44,18 +44,18 @@ class SavingsController extends Controller
     {
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
-            'transaction_type' => 'required|in:DEPOSIT,WITHDRAWAL',
-            'amount' => 'required|numeric|min:1000',
-            'notes' => 'nullable|string',
+            'type'       => 'required|in:DEPOSIT,WITHDRAWAL,TRANSFER_SPP',  // matches migration enum
+            'amount'     => 'required|numeric|min:1000',
+            'description'=> 'nullable|string',
         ]);
 
         $student = Student::findOrFail($request->student_id);
 
-        if ($request->transaction_type == 'WITHDRAWAL' && $student->savings_balance < $request->amount) {
+        if ($request->type == 'WITHDRAWAL' && $student->savings_balance < $request->amount) {
             return redirect()->back()->with('error', 'Saldo Tabungan Siswa Tidak Mencukupi!');
         }
 
-        if ($request->transaction_type == 'DEPOSIT') {
+        if ($request->type == 'DEPOSIT') {
             $newBalance = $student->savings_balance + $request->amount;
         } else {
             $newBalance = $student->savings_balance - $request->amount;
@@ -63,26 +63,27 @@ class SavingsController extends Controller
 
         $student->update(['savings_balance' => $newBalance]);
 
+        // savings_transactions migration has: student_id, type, amount, balance_after, description, teller_id
+        // No school_id column in this table!
         $trx = SavingsTransaction::create([
-            'school_id' => $student->school_id ?? 1,
-            'student_id' => $student->id,
-            'transaction_type' => $request->transaction_type,
-            'amount' => $request->amount,
+            'student_id'    => $student->id,
+            'type'          => $request->type,
+            'amount'        => $request->amount,
             'balance_after' => $newBalance,
-            'notes' => $request->notes ?? ($request->transaction_type == 'DEPOSIT' ? 'Setoran Tabungan Teller' : 'Penarikan Tabungan Teller'),
+            'description'   => $request->description ?? ($request->type == 'DEPOSIT' ? 'Setoran Tabungan Teller' : 'Penarikan Tabungan Teller'),
         ]);
 
         try {
             \App\Models\AuditLog::create([
-                'user_id' => auth()->id() ?? 1,
-                'action' => 'TABUNGAN ' . $request->transaction_type,
+                'user_id'    => auth()->id() ?? 1,
+                'action'     => 'TABUNGAN ' . $request->type,
                 'model_type' => 'SavingsTransaction',
-                'model_id' => $trx->id,
+                'model_id'   => $trx->id,
                 'ip_address' => request()->ip(),
             ]);
-        } catch(\Throwable $e) {}
+        } catch (\Throwable $e) {}
 
-        $typeLabel = $request->transaction_type == 'DEPOSIT' ? 'Setoran' : 'Penarikan';
+        $typeLabel = $request->type == 'DEPOSIT' ? 'Setoran' : 'Penarikan';
         return redirect()->back()->with('success', "Transaksi {$typeLabel} Tabungan Berhasil! Saldo Baru: Rp " . number_format($newBalance, 0, ',', '.'));
     }
 }

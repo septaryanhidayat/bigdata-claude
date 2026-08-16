@@ -8,12 +8,18 @@ class JournalEntry extends Model
 {
     protected $fillable = [
         'school_id',
-        'coa_id',
-        'transaction_date',
-        'reference_no',
+        'account_id',     // matches migration: account_id FK to chart_of_accounts
+        'reference_number', // matches migration: reference_number
         'description',
         'debit',
         'credit',
+        'date',           // matches migration: date
+    ];
+
+    protected $casts = [
+        'debit'  => 'float',
+        'credit' => 'float',
+        'date'   => 'date',
     ];
 
     public function school()
@@ -23,6 +29,6 @@ class JournalEntry extends Model
 
     public function coa()
     {
-        return $this->belongsTo(ChartOfAccount::class, 'coa_id');
+        return $this->belongsTo(ChartOfAccount::class, 'account_id');
     }
 }

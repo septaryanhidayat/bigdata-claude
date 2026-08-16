@@ -8,6 +8,7 @@ use App\Models\SppPayment;
 use App\Models\ChartOfAccount;
 use App\Models\JournalEntry;
 use App\Models\Student;
+use App\Models\AcademicYear;
 use App\Models\School;
 use Illuminate\Http\Request;
 
@@ -34,21 +35,35 @@ class FinanceController extends Controller
             $students = ($schoolId !== 'all') ? Student::where('school_id', $schoolId)->get() : Student::all();
         }
 
-        return view('admin.finance.spp_bills', compact('bills', 'students', 'schoolId'));
+        $academicYears = AcademicYear::orderBy('id', 'desc')->get();
+
+        return view('admin.finance.spp_bills', compact('bills', 'students', 'schoolId', 'academicYears'));
     }
 
     public function storeSppBill(Request $request)
     {
         $validated = $request->validate([
-            'student_id' => 'required|exists:students,id',
-            'month' => 'required|string',
-            'year' => 'required|integer',
-            'amount' => 'required|numeric|min:0',
+            'student_id'       => 'required|exists:students,id',
+            'academic_year_id' => 'nullable|exists:academic_years,id',
+            'month_period'     => 'required|string',  // e.g. 'Juli 2026' – matches DB column
+            'amount'           => 'required|numeric|min:0',
+            'due_date'         => 'nullable|date',
         ]);
 
         $student = Student::find($request->student_id);
         $validated['school_id'] = $student->school_id ?? 1;
-        $validated['status'] = 'UNPAID';
+        $validated['status']    = 'UNPAID';
+
+        // academic_year_id is required by DB FK – auto-resolve from active year if not sent
+        if (empty($validated['academic_year_id'])) {
+            $activeYear = AcademicYear::where('is_active', true)->first() ?? AcademicYear::first();
+            $validated['academic_year_id'] = $activeYear?->id ?? 1;
+        }
+
+        // due_date is required by DB schema – default to end of month if not provided
+        if (empty($validated['due_date'])) {
+            $validated['due_date'] = now()->endOfMonth()->toDateString();
+        }
 
         SppBill::create($validated);
 
@@ -60,51 +75,57 @@ class FinanceController extends Controller
      */
     public function paySpp(Request $request, $billId)
     {
-        $bill = SppBill::findOrFail($billId);
+        $bill = SppBill::with('student')->findOrFail($billId);
 
         if ($bill->status == 'PAID') {
             return redirect()->back()->with('error', 'Tagihan SPP ini sudah LUNAS!');
         }
 
-        $receiptNo = 'KW-SPP-' . date('Ymd') . '-' . str_pad($bill->id, 4, '0', STR_PAD_LEFT);
+        $receiptNumber = 'KW-SPP-' . date('Ymd') . '-' . str_pad($bill->id, 4, '0', STR_PAD_LEFT);
 
+        // SppPayment field names must match migration:
+        // receipt_number, paid_at, payment_method (CASH / TRANSFER_BANK / PAYMENT_GATEWAY / TABUNGAN)
         $payment = SppPayment::create([
-            'spp_bill_id' => $bill->id,
-            'receipt_no' => $receiptNo,
-            'amount_paid' => $bill->amount,
-            'payment_date' => date('Y-m-d'),
-            'payment_method' => 'CASH_KASIR',
-            'notes' => 'Pembayaran SPP via Kasir Sekolah',
+            'spp_bill_id'    => $bill->id,
+            'receipt_number' => $receiptNumber,
+            'amount_paid'    => $bill->amount - $bill->discount_amount,
+            'paid_at'        => now(),
+            'payment_method' => 'CASH',  // valid enum value from migration
+            'notes'          => 'Pembayaran SPP via Kasir Sekolah',
         ]);
 
-        $bill->update(['status' => 'PAID']);
+        $bill->update([
+            'status'      => 'PAID',
+            'paid_amount' => $bill->amount - $bill->discount_amount,
+        ]);
 
         // Auto Record to Accounting Journal (Jurnal Otomatis)
+        // account_id is the FK column name in journal_entries (not coa_id)
         $kasCoa = ChartOfAccount::where('code', '101')->first();
         if ($kasCoa) {
             JournalEntry::create([
-                'school_id' => $bill->school_id ?? 1,
-                'coa_id' => $kasCoa->id,
-                'transaction_date' => date('Y-m-d'),
-                'reference_no' => $receiptNo,
-                'description' => "Penerimaan SPP {$bill->month} {$bill->year} - " . ($bill->student->full_name ?? 'Siswa'),
-                'debit' => $bill->amount,
-                'credit' => 0,
+                'school_id'        => $bill->school_id ?? 1,
+                'account_id'       => $kasCoa->id,
+                'date'             => now()->toDateString(),
+                'reference_number' => $receiptNumber,
+                'description'      => "Penerimaan SPP {$bill->month_period} - " . ($bill->student->full_name ?? 'Siswa'),
+                'debit'            => $bill->amount - $bill->discount_amount,
+                'credit'           => 0,
             ]);
-            $kasCoa->increment('balance', $bill->amount);
+            $kasCoa->increment('current_balance', $bill->amount - $bill->discount_amount);
         }
 
         try {
             \App\Models\AuditLog::create([
-                'user_id' => auth()->id() ?? 1,
-                'action' => 'BAYAR SPP',
+                'user_id'    => auth()->id() ?? 1,
+                'action'     => 'BAYAR SPP',
                 'model_type' => 'SppPayment',
-                'model_id' => $payment->id,
+                'model_id'   => $payment->id,
                 'ip_address' => request()->ip(),
             ]);
-        } catch(\Throwable $e) {}
+        } catch (\Throwable $e) {}
 
-        return redirect()->back()->with('success', "Pembayaran SPP Berhasil! Kwitansi: {$receiptNo}");
+        return redirect()->back()->with('success', "Pembayaran SPP Berhasil! Kwitansi: {$receiptNumber}");
     }
 
     public function printReceipt($paymentId)
@@ -118,9 +139,10 @@ class FinanceController extends Controller
      */
     public function coa()
     {
-        $coas = ChartOfAccount::orderBy('code', 'asc')->get();
+        $coas    = ChartOfAccount::orderBy('code', 'asc')->get();
+        // coa() relation on JournalEntry uses account_id → ChartOfAccount
         $journals = JournalEntry::with('coa')->latest()->paginate(15);
-        $schools = School::all();
+        $schools  = School::all();
 
         return view('admin.finance.coa', compact('coas', 'journals', 'schools'));
     }
@@ -128,11 +150,11 @@ class FinanceController extends Controller
     public function storeCoa(Request $request)
     {
         $validated = $request->validate([
-            'school_id' => 'required|exists:schools,id',
-            'code' => 'required|string|unique:chart_of_accounts,code',
-            'name' => 'required|string',
-            'type' => 'required|in:ASSET,LIABILITY,EQUITY,REVENUE,EXPENSE',
-            'balance' => 'required|numeric',
+            'school_id'       => 'required|exists:schools,id',
+            'code'            => 'required|string|unique:chart_of_accounts,code',
+            'name'            => 'required|string',
+            'type'            => 'required|in:ASSET,LIABILITY,EQUITY,REVENUE,EXPENSE',
+            'current_balance' => 'required|numeric',
         ]);
 
         ChartOfAccount::create($validated);

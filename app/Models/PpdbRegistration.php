@@ -20,6 +20,12 @@ class PpdbRegistration extends Model
         'status',
         'registration_fee',
         'fee_paid',
+        'details_json',  // added via migration 2026_08_16_000005
+    ];
+
+    protected $casts = [
+        'fee_paid'     => 'boolean',
+        'details_json' => 'array',   // auto decode JSON to array on access
     ];
 
     public function school()

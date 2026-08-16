@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\CbtExam;
 use App\Models\PpdbRegistration;
 use App\Models\School;
+use App\Models\Guardian;
+use App\Models\AcademicYear;
 use Illuminate\Http\Request;
 
 class CbtPpdbController extends Controller
@@ -122,32 +124,36 @@ class CbtPpdbController extends Controller
 
         if ($newStatus === 'PASSED') {
             // Auto create student in Master Data
-            $schoolId = $reg->school_id ?? \App\Models\School::first()?->id;
+            $schoolId    = $reg->school_id ?? \App\Models\School::first()?->id;
             $classroomId = \App\Models\Classroom::where('school_id', $schoolId)->first()?->id;
 
             $student = \App\Models\Student::firstOrCreate(
                 ['nis' => '2026' . str_pad($reg->id, 4, '0', STR_PAD_LEFT)],
                 [
-                    'school_id' => $schoolId,
+                    'school_id'    => $schoolId,
                     'classroom_id' => $classroomId,
-                    'nisn' => '006' . str_pad($reg->id, 7, '0', STR_PAD_LEFT),
-                    'full_name' => $reg->full_name,
-                    'gender' => 'M',
-                    'rfid_tag' => 'RFID-PPDB-' . rand(1000, 9999),
+                    'nisn'         => '006' . str_pad($reg->id, 7, '0', STR_PAD_LEFT),
+                    'full_name'    => $reg->full_name,
+                    'gender'       => 'M',
+                    'rfid_tag'     => 'RFID-PPDB-' . rand(1000, 9999),
                     'savings_balance' => 100000,
-                    'status' => 'ACTIVE',
+                    'status'       => 'ACTIVE',
                 ]
             );
 
-            // Auto create/link Parent record for Parent Portal
+            // Auto create/link Guardian record (ParentModel does not exist – use Guardian instead)
             if ($reg->parent_name) {
                 try {
-                    \App\Models\ParentModel::firstOrCreate(
-                        ['phone_number' => $reg->phone_number],
+                    // Decode details_json if stored as JSON string
+                    $detailsJson = is_array($reg->details_json)
+                        ? $reg->details_json
+                        : json_decode($reg->details_json ?? '{}', true);
+
+                    \App\Models\Guardian::firstOrCreate(
+                        ['phone' => $reg->phone_number],
                         [
                             'full_name' => $reg->parent_name,
-                            'email' => $reg->details_json['email_ortu'] ?? 'ortu.' . $reg->id . '@sitrobbani.sch.id',
-                            'password' => bcrypt('123456'),
+                            'email'     => $detailsJson['email_ortu'] ?? 'ortu.' . $reg->id . '@sitrobbani.sch.id',
                         ]
                     );
                 } catch (\Throwable $e) {}
@@ -155,15 +161,20 @@ class CbtPpdbController extends Controller
 
             // Auto create initial SPP bill in Finance Module
             try {
+                $activeYear = \App\Models\AcademicYear::where('is_active', true)->first()
+                    ?? \App\Models\AcademicYear::first();
+
                 \App\Models\SppBill::firstOrCreate(
                     [
-                        'student_id' => $student->id,
-                        'month_year' => date('Y-m'),
+                        'student_id'   => $student->id,
+                        'month_period' => date('F Y'),  // e.g. 'August 2026' – matches DB column
                     ],
                     [
-                        'school_id' => $schoolId,
-                        'amount' => 350000,
-                        'status' => 'UNPAID',
+                        'school_id'        => $schoolId,
+                        'academic_year_id' => $activeYear?->id ?? 1,
+                        'amount'           => 350000,
+                        'due_date'         => now()->endOfMonth()->toDateString(),
+                        'status'           => 'UNPAID',
                     ]
                 );
             } catch (\Throwable $e) {}
@@ -171,13 +182,13 @@ class CbtPpdbController extends Controller
 
         try {
             \App\Models\AuditLog::create([
-                'user_id' => auth()->id() ?? 1,
-                'action' => 'PPDB SET STATUS (' . $newStatus . ')',
+                'user_id'    => auth()->id() ?? 1,
+                'action'     => 'PPDB SET STATUS (' . $newStatus . ')',
                 'model_type' => 'PpdbRegistration',
-                'model_id' => $reg->id,
+                'model_id'   => $reg->id,
                 'ip_address' => request()->ip(),
             ]);
-        } catch(\Throwable $e) {}
+        } catch (\Throwable $e) {}
 
         return redirect()->back()->with('success', '✓ Status Kelulusan Pendaftar PPDB berhasil diperbarui & Data Siswa Baru Otomatis Diterbitkan!');
     }

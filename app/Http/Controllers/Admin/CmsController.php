@@ -27,9 +27,9 @@ class CmsController extends Controller
         $allSchools = School::all();
         $activeSchoolObj = ($schoolId !== 'all') ? School::find($schoolId) : null;
 
-        $studentsQuery = Student::query();
-        $teachersQuery = Employee::where('role_type', 'TEACHER');
-        $staffQuery = Employee::where('role_type', 'STAFF');
+        $studentsQuery   = Student::query();
+        $teachersQuery   = Employee::where('role_type', 'TEACHER');
+        $staffQuery      = Employee::where('role_type', '!=', 'TEACHER');
         $classroomsQuery = Classroom::query();
         $subjectsQuery = \App\Models\Subject::query();
         $attendanceQuery = Attendance::query();
@@ -95,7 +95,7 @@ class CmsController extends Controller
         }
 
         $sarprasCount = $sarprasQuery->count();
-        $sarprasTotalValue = $sarprasQuery->sum(\DB::raw('purchase_cost * quantity'));
+        $sarprasTotalValue  = $sarprasQuery->sum(\Illuminate\Support\Facades\DB::raw('purchase_cost * quantity'));
         $libraryBooksCount = $libraryQuery->sum('stock');
         $lmsMaterialsCount = $lmsQuery->count();
         $bkRecordsCount = $bkQuery->count();

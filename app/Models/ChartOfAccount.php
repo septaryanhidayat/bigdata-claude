@@ -11,7 +11,11 @@ class ChartOfAccount extends Model
         'code',
         'name',
         'type',
-        'balance',
+        'current_balance',
+    ];
+
+    protected $casts = [
+        'current_balance' => 'float',
     ];
 
     public function school()

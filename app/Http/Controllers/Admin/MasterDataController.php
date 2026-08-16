@@ -27,9 +27,9 @@ class MasterDataController extends Controller
         $academicYears = AcademicYear::orderBy('id', 'desc')->get();
         $activeYear = AcademicYear::where('is_active', 1)->first() ?? $academicYears->first();
         
-        $studentsCount = Student::count();
-        $teachersCount = Employee::where('type', 'GURU')->count();
-        $staffCount = Employee::where('type', 'NON_GURU')->count();
+        $studentsCount  = Student::count();
+        $teachersCount  = Employee::where('role_type', 'TEACHER')->count();
+        $staffCount     = Employee::where('role_type', '!=', 'TEACHER')->count();
         $classroomsCount = Classroom::count();
 
         $activeSchoolId = session('active_school_id', $schools->first()->id ?? 1);
@@ -167,12 +167,19 @@ class MasterDataController extends Controller
     public function storeClassroom(Request $request)
     {
         $validated = $request->validate([
-            'school_id' => 'required|exists:schools,id',
-            'level_id' => 'required|exists:levels,id',
-            'name' => 'required|string',
-            'capacity' => 'required|integer',
+            'school_id'           => 'required|exists:schools,id',
+            'level_id'            => 'required|exists:levels,id',
+            'academic_year_id'    => 'nullable|exists:academic_years,id',  // required by DB FK
+            'name'                => 'required|string',
+            'capacity'            => 'required|integer',
             'homeroom_teacher_id' => 'nullable|exists:employees,id',
         ]);
+
+        // Auto-resolve active academic year if not provided
+        if (empty($validated['academic_year_id'])) {
+            $activeYear = AcademicYear::where('is_active', true)->first() ?? AcademicYear::first();
+            $validated['academic_year_id'] = $activeYear?->id ?? 1;
+        }
 
         Classroom::create($validated);
 
@@ -210,20 +217,20 @@ class MasterDataController extends Controller
     public function storeStudent(Request $request)
     {
         $validated = $request->validate([
-            'school_id' => 'required|exists:schools,id',
+            'school_id'    => 'required|exists:schools,id',
             'classroom_id' => 'nullable|exists:classrooms,id',
-            'nis' => 'required|string|unique:students,nis',
-            'nisn' => 'nullable|string',
-            'full_name' => 'required|string',
-            'gender' => 'required',
-            'birth_place' => 'nullable|string',
-            'birth_date' => 'nullable|date',
-            'rfid_tag' => 'nullable|string|unique:students,rfid_tag',
-            'status' => 'nullable|string',
+            'nis'          => 'required|string|unique:students,nis',
+            'nisn'         => 'nullable|string',
+            'full_name'    => 'required|string',
+            'gender'       => 'required',
+            'pob'          => 'nullable|string',   // place of birth – matches DB column
+            'dob'          => 'nullable|date',     // date of birth  – matches DB column
+            'rfid_tag'     => 'nullable|string|unique:students,rfid_tag',
+            'status'       => 'nullable|string',
         ]);
 
         $validated['gender'] = in_array(strtoupper($request->gender), ['L', 'LAKI_LAKI', 'M']) ? 'M' : 'F';
-        $validated['status'] = in_array(strtoupper($request->status ?? 'ACTIVE'), ['AKTIF', 'ACTIVE']) ? 'ACTIVE' : 'ACTIVE';
+        $validated['status'] = in_array(strtoupper($request->status ?? 'ACTIVE'), ['AKTIF', 'ACTIVE']) ? 'ACTIVE' : ($request->status ?? 'ACTIVE');
 
         Student::create($validated);
 
@@ -314,25 +321,27 @@ class MasterDataController extends Controller
      */
     public function exportTeachers()
     {
-        $teachers = Employee::whereIn('role_type', ['TEACHER', 'GURU'])->orWhere('type', 'GURU')->get();
+        $teachers = Employee::where('role_type', 'TEACHER')->get();
         $filename = 'export_teachers_' . date('Ymd_His') . '.csv';
 
         $headers = [
-            'Content-Type' => 'text/csv',
+            'Content-Type'        => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"$filename\"",
         ];
 
         $callback = function () use ($teachers) {
             $file = fopen('php://output', 'w');
-            fputcsv($file, ['ID', 'NIP', 'Nama Guru', 'Gelar', 'Jabatan', 'Unit Sekolah', 'No. HP', 'Email']);
+            fputcsv($file, ['ID', 'NIP', 'Nama Guru', 'Gelar Depan', 'Gelar Belakang', 'Role', 'Status Kepegawaian', 'Unit Sekolah', 'No. HP', 'Email']);
 
             foreach ($teachers as $t) {
                 fputcsv($file, [
                     $t->id,
                     $t->nip ?? '-',
                     $t->full_name,
-                    $t->title ?? '-',
-                    $t->position ?? 'Guru Pelajaran',
+                    $t->title_prefix ?? '-',
+                    $t->title_suffix ?? '-',
+                    $t->role_type ?? 'TEACHER',
+                    $t->employment_status ?? 'PERMANENT',
                     $t->school->name ?? '-',
                     $t->phone ?? '-',
                     $t->email ?? '-',
@@ -349,8 +358,8 @@ class MasterDataController extends Controller
      */
     public function teachers()
     {
-        $teachers = Employee::where('type', 'GURU')->with('school')->latest()->paginate(15);
-        $schools = School::all();
+        $teachers = Employee::where('role_type', 'TEACHER')->with('school')->latest()->paginate(15);
+        $schools  = School::all();
 
         return view('admin.master.teachers', compact('teachers', 'schools'));
     }
@@ -358,15 +367,21 @@ class MasterDataController extends Controller
     public function storeTeacher(Request $request)
     {
         $validated = $request->validate([
-            'school_id' => 'required|exists:schools,id',
-            'nip' => 'required|string|unique:employees,nip',
-            'full_name' => 'required|string',
-            'title' => 'nullable|string',
-            'type' => 'required|in:GURU,NON_GURU',
-            'position' => 'required|string',
-            'phone' => 'nullable|string',
-            'email' => 'nullable|email',
+            'school_id'        => 'required|exists:schools,id',
+            'nip'              => 'nullable|string|unique:employees,nip',
+            'full_name'        => 'required|string',
+            'title_prefix'     => 'nullable|string',   // e.g. 'Ustdz.' – matches DB column
+            'title_suffix'     => 'nullable|string',   // e.g. 'S.Pd.' – matches DB column
+            'gender'           => 'nullable|in:M,F',
+            'role_type'        => 'required|in:TEACHER,STAFF,HEADMASTER,COUNSELOR,TREASURER',
+            'employment_status'=> 'nullable|in:PERMANENT,CONTRACT,HONORARY',
+            'phone'            => 'nullable|string',
+            'email'            => 'nullable|email',
         ]);
+
+        // Default values
+        $validated['role_type']         = $validated['role_type'] ?? 'TEACHER';
+        $validated['employment_status'] = $validated['employment_status'] ?? 'PERMANENT';
 
         Employee::create($validated);
 
@@ -378,7 +393,11 @@ class MasterDataController extends Controller
      */
     public function employees()
     {
-        $employees = Employee::where('type', 'NON_GURU')->with('school')->latest()->paginate(15);
+        $employees = Employee::whereIn('role_type', ['STAFF'])->with('school')->latest()->paginate(15);
+        // Also fetch non-TEACHER staff: STAFF, COUNSELOR, TREASURER, etc.
+        if ($employees->isEmpty()) {
+            $employees = Employee::where('role_type', '!=', 'TEACHER')->with('school')->latest()->paginate(15);
+        }
         $schools = School::all();
 
         return view('admin.master.employees', compact('employees', 'schools'));

@@ -8,11 +8,16 @@ class SavingsTransaction extends Model
 {
     protected $fillable = [
         'student_id',
-        'type',
+        'type',         // matches migration enum: DEPOSIT, WITHDRAWAL, TRANSFER_SPP
         'amount',
         'balance_after',
-        'description',
+        'description',  // matches migration column (was 'notes' in controller – now fixed)
         'teller_id',
+    ];
+
+    protected $casts = [
+        'amount'        => 'float',
+        'balance_after' => 'float',
     ];
 
     public function student()
