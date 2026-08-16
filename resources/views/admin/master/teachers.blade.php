@@ -37,15 +37,15 @@
                 <tbody class="divide-y divide-slate-100 font-medium">
                     @foreach($teachers as $tch)
                     <tr class="hover:bg-slate-50">
-                        <td class="py-3.5 px-4 font-mono font-extrabold text-slate-900">{{ $tch->nip }}</td>
+                        <td class="py-3.5 px-4 font-mono font-extrabold text-slate-900">{{ $tch->nip ?? '-' }}</td>
                         <td class="py-3.5 px-4">
-                            <h4 class="font-bold text-slate-900">{{ $tch->full_name }} {{ $tch->title ? ', '.$tch->title : '' }}</h4>
-                            <span class="text-[10px] text-slate-400">Guru Tenaga Pendidik ({{ $tch->type }})</span>
+                            <h4 class="font-bold text-slate-900">{{ $tch->title_prefix ? $tch->title_prefix.' ' : '' }}{{ $tch->full_name }}{{ $tch->title_suffix ? ', '.$tch->title_suffix : '' }}</h4>
+                            <span class="text-[10px] text-slate-400">{{ $tch->role_type }} &bull; {{ $tch->gender == 'M' ? 'Laki-Laki' : 'Perempuan' }}</span>
                         </td>
                         <td class="py-3.5 px-4 font-extrabold text-emerald-800">{{ $tch->school->name ?? '-' }}</td>
                         <td class="py-3.5 px-4">
                             <span class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 font-bold text-[10px]">
-                                {{ $tch->position }}
+                                {{ $tch->employment_status ?? 'PERMANENT' }}
                             </span>
                         </td>
                         <td class="py-3.5 px-4 text-slate-600">
@@ -85,14 +85,17 @@
 
             <div>
                 <label class="block text-slate-700 mb-1">NIP (Nomor Induk Pegawai)</label>
-                <input type="text" name="nip" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300" placeholder="198505122026011002">
+                <input type="text" name="nip" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300" placeholder="198505122026011002">
             </div>
 
             <div>
-                <label class="block text-slate-700 mb-1">Kategori Pegawai</label>
-                <select name="type" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300">
-                    <option value="GURU">GURU / TENAGA PENDIDIK</option>
-                    <option value="NON_GURU">NON-GURU (TU / CS / SECURITY)</option>
+                <label class="block text-slate-700 mb-1">Kategori Pegawai (Role)</label>
+                <select name="role_type" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300">
+                    <option value="TEACHER">GURU / TENAGA PENDIDIK</option>
+                    <option value="STAFF">STAF TATA USAHA</option>
+                    <option value="HEADMASTER">KEPALA SEKOLAH</option>
+                    <option value="COUNSELOR">GURU BK / KONSELOR</option>
+                    <option value="TREASURER">BENDAHARA</option>
                 </select>
             </div>
 
@@ -102,13 +105,22 @@
             </div>
 
             <div>
-                <label class="block text-slate-700 mb-1">Gelar Akademik (Misal: S.Pd.I, M.Pd)</label>
-                <input type="text" name="title" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300" placeholder="S.Pd.I">
+                <label class="block text-slate-700 mb-1">Gelar Depan (misal: Ustdz., Drs.)</label>
+                <input type="text" name="title_prefix" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300" placeholder="Ustdz.">
             </div>
 
             <div>
-                <label class="block text-slate-700 mb-1">Posisi / Jabatan Mengajar</label>
-                <input type="text" name="position" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300" placeholder="Guru PAI & Pengampu Tahfidz">
+                <label class="block text-slate-700 mb-1">Gelar Belakang (misal: S.Pd.I, M.Pd)</label>
+                <input type="text" name="title_suffix" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300" placeholder="S.Pd.I">
+            </div>
+
+            <div>
+                <label class="block text-slate-700 mb-1">Status Kepegawaian</label>
+                <select name="employment_status" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300">
+                    <option value="PERMANENT">TETAP / PERMANENT</option>
+                    <option value="CONTRACT">KONTRAK</option>
+                    <option value="HONORARY">HONOR</option>
+                </select>
             </div>
 
             <div>

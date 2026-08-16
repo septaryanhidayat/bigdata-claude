@@ -21,7 +21,7 @@ class FinanceController extends Controller
     {
         $schoolId = session('dashboard_school_id', 'all');
 
-        $billsQuery = SppBill::with(['student.school', 'student.classroom']);
+        $billsQuery = SppBill::with(['student.school', 'student.classroom', 'payments']);
         $studentsQuery = Student::whereIn('status', ['ACTIVE', 'AKTIF']);
 
         if ($schoolId !== 'all') {

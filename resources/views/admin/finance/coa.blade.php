@@ -36,7 +36,7 @@
                                     {{ $c->type }}
                                 </span>
                             </td>
-                            <td class="p-3 font-black text-slate-900">Rp {{ number_format($c->balance, 0, ',', '.') }}</td>
+                            <td class="p-3 font-black text-slate-900">Rp {{ number_format($c->current_balance, 0, ',', '.') }}</td>
                         </tr>
                         @endforeach
                     </tbody>
@@ -62,7 +62,7 @@
                         <option value="REVENUE">REVENUE (Pendapatan)</option>
                         <option value="EXPENSE">EXPENSE (Beban Operasional)</option>
                     </select>
-                    <input type="number" name="balance" value="0" required placeholder="Saldo Awal" class="px-3 py-2 rounded-xl border border-slate-300">
+                    <input type="number" name="current_balance" value="0" required placeholder="Saldo Awal" class="px-3 py-2 rounded-xl border border-slate-300">
                 </div>
 
                 <button type="submit" class="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-extrabold">
@@ -89,8 +89,8 @@
                         @foreach($journals as $j)
                         <tr class="hover:bg-slate-50">
                             <td class="p-3">
-                                <span class="font-mono font-bold text-slate-900 block">{{ $j->reference_no }}</span>
-                                <span class="text-[10px] text-slate-400">{{ $j->transaction_date }}</span>
+                                <span class="font-mono font-bold text-slate-900 block">{{ $j->reference_number }}</span>
+                                <span class="text-[10px] text-slate-400">{{ $j->date }}</span>
                             </td>
                             <td class="p-3 font-bold text-slate-900">
                                 {{ $j->coa->name ?? '-' }}

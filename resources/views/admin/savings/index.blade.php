@@ -43,15 +43,17 @@
                             <span class="text-[10px] text-slate-400">NIS: {{ $tx->student->nis ?? '-' }} • {{ $tx->student->classroom->name ?? '-' }}</span>
                         </td>
                         <td class="p-4">
-                            @if($tx->transaction_type == 'DEPOSIT')
+                            @if($tx->type == 'DEPOSIT')
                                 <span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-black text-[10px]">🟢 SETOR TUNAI</span>
+                            @elseif($tx->type == 'TRANSFER_SPP')
+                                <span class="px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 font-black text-[10px]">🟦 TRANSFER SPP</span>
                             @else
                                 <span class="px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 font-black text-[10px]">🔴 TARIK TUNAI</span>
                             @endif
                         </td>
                         <td class="p-4 font-black text-slate-900">Rp {{ number_format($tx->amount, 0, ',', '.') }}</td>
                         <td class="p-4 font-extrabold text-emerald-700">Rp {{ number_format($tx->balance_after, 0, ',', '.') }}</td>
-                        <td class="p-4 text-slate-500">{{ $tx->notes }}</td>
+                        <td class="p-4 text-slate-500">{{ $tx->description }}</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -80,7 +82,7 @@
 
             <div>
                 <label class="block text-slate-700 mb-1">Jenis Transaksi</label>
-                <select name="transaction_type" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300">
+                <select name="type" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300">
                     <option value="DEPOSIT">🟢 SETOR TUNAI</option>
                     <option value="WITHDRAWAL">🔴 TARIK TUNAI</option>
                 </select>
@@ -93,7 +95,7 @@
 
             <div class="md:col-span-3">
                 <label class="block text-slate-700 mb-1">Catatan Transaksi Teller</label>
-                <input type="text" name="notes" placeholder="Setoran tabungan mingguan" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300">
+                <input type="text" name="description" placeholder="Setoran tabungan mingguan" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300">
             </div>
 
             <div class="md:col-span-3 pt-2">

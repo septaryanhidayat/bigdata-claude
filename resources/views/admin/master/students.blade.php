@@ -87,7 +87,7 @@
                         </td>
                         <td class="py-3.5 px-4">
                             <h4 class="font-bold text-slate-900">{{ $st->full_name }}</h4>
-                            <span class="text-[10px] text-slate-400">NISN: {{ $st->nisn ?? '-' }} ({{ $st->gender == 'L' ? 'Laki-Laki' : 'Perempuan' }})</span>
+                            <span class="text-[10px] text-slate-400">NISN: {{ $st->nisn ?? '-' }} &bull; {{ $st->gender == 'M' ? 'Laki-Laki' : 'Perempuan' }}</span>
                         </td>
                         <td class="py-3.5 px-4">
                             <span class="font-bold text-emerald-700 block">{{ $st->school->code ?? '-' }}</span>
@@ -104,9 +104,9 @@
                             Rp {{ number_format($st->savings_balance, 0, ',', '.') }}
                         </td>
                         <td class="py-3.5 px-4 text-center">
-                            @if($st->status == 'AKTIF')
+                            @if(in_array($st->status, ['AKTIF', 'ACTIVE']))
                                 <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">AKTIF</span>
-                            @elseif($st->status == 'LULUS')
+                            @elseif(in_array($st->status, ['LULUS', 'GRADUATED']))
                                 <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">LULUS</span>
                             @else
                                 <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">{{ $st->status }}</span>
@@ -181,9 +181,19 @@
             <div>
                 <label class="block text-slate-700 mb-1">Jenis Kelamin</label>
                 <select name="gender" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300">
-                    <option value="L">Laki-Laki (Ikhwan)</option>
-                    <option value="P">Perempuan (Akhwat)</option>
+                    <option value="M">Laki-Laki (Ikhwan)</option>
+                    <option value="F">Perempuan (Akhwat)</option>
                 </select>
+            </div>
+
+            <div>
+                <label class="block text-slate-700 mb-1">Tempat Lahir</label>
+                <input type="text" name="pob" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300" placeholder="Jakarta">
+            </div>
+
+            <div>
+                <label class="block text-slate-700 mb-1">Tanggal Lahir</label>
+                <input type="date" name="dob" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300">
             </div>
 
             <div class="md:col-span-3 pt-2">

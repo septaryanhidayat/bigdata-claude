@@ -35,25 +35,34 @@
                             <span class="font-black text-slate-900 block">{{ $bl->student->full_name ?? '-' }}</span>
                             <span class="text-[10px] text-slate-400">NIS: {{ $bl->student->nis ?? '-' }} • {{ $bl->student->classroom->name ?? '-' }}</span>
                         </td>
-                        <td class="p-4 font-bold text-slate-900">{{ $bl->month }} {{ $bl->year }}</td>
+                        <td class="p-4 font-bold text-slate-900">{{ $bl->month_period ?? '-' }}</td>
                         <td class="p-4 font-black text-emerald-700">Rp {{ number_format($bl->amount, 0, ',', '.') }}</td>
                         <td class="p-4">
                             @if($bl->status == 'PAID')
-                                <span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-black text-[10px]">LUNAS</span>
+                                <span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-black text-[10px]">✅ LUNAS</span>
+                            @elseif($bl->status == 'PARTIAL')
+                                <span class="px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-black text-[10px]">⚠️ SEBAGIAN</span>
                             @else
-                                <span class="px-3 py-1 rounded-full bg-rose-100 text-rose-800 font-black text-[10px]">BELUM BAYAR</span>
+                                <span class="px-3 py-1 rounded-full bg-rose-100 text-rose-800 font-black text-[10px]">❌ BELUM BAYAR</span>
                             @endif
                         </td>
                         <td class="p-4">
-                            @if($bl->status == 'UNPAID')
-                                <form action="{{ route('admin.finance.spp-bills.pay', $bl->id) }}" method="POST">
+                            @if($bl->status == 'UNPAID' || $bl->status == 'PARTIAL')
+                                <form action="{{ route('admin.finance.spp-bills.pay', $bl->id) }}" method="POST" onsubmit="return confirm('Proses pembayaran SPP?')">
                                     @csrf
                                     <button type="submit" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white font-black text-[10px] hover:bg-emerald-700 transition-colors shadow">
-                                        💳 Bayar Kasir (Terima SPP)
+                                        💳 Bayar Kasir
                                     </button>
                                 </form>
                             @else
-                                <span class="text-xs text-slate-400 font-semibold">Tercatat Lunas</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs text-slate-400 font-semibold">Lunas</span>
+                                    @if($bl->payments && $bl->payments->count())
+                                        <a href="{{ route('admin.finance.receipt', $bl->payments->first()->id) }}" target="_blank" class="px-3 py-1 rounded-xl bg-slate-100 text-slate-700 font-black text-[10px] hover:bg-slate-200">
+                                            🖨️ Kwitansi
+                                        </a>
+                                    @endif
+                                </div>
                             @endif
                         </td>
                     </tr>
@@ -84,25 +93,11 @@
 
             <div>
                 <label class="block text-slate-700 mb-1">Bulan Tagihan</label>
-                <select name="month" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300">
-                    <option value="Juli">Juli</option>
-                    <option value="Agustus">Agustus</option>
-                    <option value="September">September</option>
-                    <option value="Oktober">Oktober</option>
-                    <option value="November">November</option>
-                    <option value="Desember">Desember</option>
-                    <option value="Januari">Januari</option>
-                    <option value="Februari">Februari</option>
-                    <option value="Maret">Maret</option>
-                    <option value="April">April</option>
-                    <option value="Mei">Mei</option>
-                    <option value="Juni">Juni</option>
-                </select>
-            </div>
-
-            <div>
-                <label class="block text-slate-700 mb-1">Tahun Tagihan</label>
-                <input type="number" name="year" value="2026" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300">
+                <input type="text" name="month_period" required
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300"
+                    placeholder="Agustus 2026"
+                    value="{{ now()->isoFormat('MMMM YYYY') }}">
+                <p class="text-[10px] text-slate-400 mt-1">Format: nama bulan + tahun (misal: Agustus 2026)</p>
             </div>
 
             <div>

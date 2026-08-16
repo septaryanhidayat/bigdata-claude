@@ -156,10 +156,22 @@ class MasterDataController extends Controller
      */
     public function classrooms()
     {
-        $classrooms = Classroom::with(['school', 'level', 'homeroomTeacher'])->get();
-        $schools = School::all();
-        $levels = Level::all();
-        $teachers = Employee::where('type', 'GURU')->get();
+        $schoolId = session('dashboard_school_id', 'all');
+
+        $classroomsQuery = Classroom::with(['school', 'level', 'homeroomTeacher']);
+        $levelsQuery     = Level::query();
+        if ($schoolId !== 'all') {
+            $classroomsQuery->where('school_id', $schoolId);
+            $levelsQuery->where('school_id', $schoolId);
+        }
+
+        $classrooms = $classroomsQuery->get();
+        $schools    = School::all();
+        $levels     = $levelsQuery->get();
+        $teachers   = Employee::where('role_type', 'TEACHER')->get();
+        if ($teachers->isEmpty()) {
+            $teachers = Employee::all();
+        }
 
         return view('admin.master.classrooms', compact('classrooms', 'schools', 'levels', 'teachers'));
     }
